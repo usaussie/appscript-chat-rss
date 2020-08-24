@@ -5,36 +5,35 @@
 // When DEBUG is set to true, the topic is not actually posted to the room
 var DEBUG = false;
 
-// [0] => Webhook URL
-// [1] => Feed Name
-// [2] => Feed URL
-// [3] => Feed Image/Logo URL
-var FEED_URL_ARRAY = [
-    [ 
-      "<web hook url for room A>",
-      "Box", 
-      "https://status.box.com/history.rss", 
-      "https://logodix.com/logo/759466.png",
-    ],
-    [ 
-      "<web hook url for room B>",
-      "Another Service", 
-      "https://another.service.com/feed/", 
-      "https://another.service.com/logo.png"
-    ]
-];
+// URL to a google sheet you have permissions to
+// Columns MUST be in this order: 
+// feed_name {STRING)}
+// feed_url (URL)
+// feed_logo (URL)
+// webhook_url (URL)
+// status (STRING) - active | disabled
+var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR-SPREADSHEET-ID-HERE/edit";
+var GOOGLE_SHEET_TAB_NAME = "YOUR TAB NAME";
 
 /*
 * DO NOT CHANGE ANYTHING BELOW THIS LINE
 */
 
-// loop through all the feeds in the array above
+var all_sheet_rows = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_TAB_NAME).getDataRange().getValues();
+
+var filteredRows = all_sheet_rows.filter(function(row){
+  if (row[4] === 'active') {
+    return row;
+  }
+});
+
+// loop through all the filtered rows (the active ones)
 function fetch_all_feeds() {
 
-  FEED_URL_ARRAY.forEach(function(thisFeed) {
+  filteredRows.forEach(function(row, index) {
     
-      fetchNews(thisFeed[0], thisFeed[1], thisFeed[2], thisFeed[3]);
-    
+      fetchNews(row[3], row[0], row[1], row[2]);
+
   });
 
 }
@@ -47,8 +46,8 @@ function fetchNews(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL) {
   Logger.log("Last update: " + lastUpdate);
   
   Logger.log("Fetching '" + FEED_NAME + "'...");
-  Logger.log("URL '" + FEED_URL + "'...");
-  Logger.log("LOGO '" + FEED_LOGO_URL + "'...");
+  //Logger.log("URL '" + FEED_URL + "'...");
+  //Logger.log("LOGO '" + FEED_LOGO_URL + "'...");
   
   var xml = UrlFetchApp.fetch(FEED_URL).getContentText();
   var document = XmlService.parse(xml);
@@ -78,7 +77,7 @@ function fetchNews(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL) {
 
     // check to make sure the feed event is after the last time we ran the script
     if(pubDate.getTime() > lastUpdate.getTime()) {
-      Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
+      //Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
       if(!DEBUG){
         postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
       }
