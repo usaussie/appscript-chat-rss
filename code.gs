@@ -5,21 +5,22 @@
 // When DEBUG is set to true, the topic is not actually posted to the room
 var DEBUG = false;
 
-// Webhook URL of the Hangouts Chat room
-var WEBHOOK_URL = "<paste webhook URL here>";
-
-// 
-// [0] => Feed Name
-// [1] => Feed URL
-// [2] => Feed Image/Logo URL
+// [0] => Webhook URL
+// [1] => Feed Name
+// [2] => Feed URL
+// [3] => Feed Image/Logo URL
 var FEED_URL_ARRAY = [
-    [ "First Feed Name", 
-      "https://status.example.com/rss", 
-      "https://status.example.com/logo.png"
+    [ 
+      "<web hook url for room A>",
+      "Box", 
+      "https://status.box.com/history.rss", 
+      "https://logodix.com/logo/759466.png",
     ],
-    [ "Another Feed", 
-      "http://example.com/rss/feed", 
-      "http://example.com/logo.png"
+    [ 
+      "<web hook url for room B>",
+      "Another Service", 
+      "https://another.service.com/feed/", 
+      "https://another.service.com/logo.png"
     ]
 ];
 
@@ -32,14 +33,14 @@ function fetch_all_feeds() {
 
   FEED_URL_ARRAY.forEach(function(thisFeed) {
     
-      fetchNews(thisFeed[0], thisFeed[1], thisFeed[2]);
+      fetchNews(thisFeed[0], thisFeed[1], thisFeed[2], thisFeed[3]);
     
   });
 
 }
 
-// fetch a feed, and send any new events through to Chat
-function fetchNews(FEED_NAME, FEED_URL, FEED_LOGO_URL) {
+// fetch a feed, and send any new events through to the associated Chat room
+function fetchNews(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL) {
   
   var lastUpdate = new Date(parseFloat(PropertiesService.getScriptProperties().getProperty("lastUpdate")) || 0);
 
@@ -79,7 +80,7 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_LOGO_URL) {
     if(pubDate.getTime() > lastUpdate.getTime()) {
       Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
       if(!DEBUG){
-        postTopicAsCard_(FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
+        postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
       }
       PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
       count++;
@@ -90,7 +91,7 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_LOGO_URL) {
 }
 
 // quick function to take the info, send it to create a card, and then post the card.
-function postTopicAsCard_(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link) {
+function postTopicAsCard_(webhook_url, feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link) {
   
   var card_json = createCardJson(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link);
 
@@ -101,7 +102,7 @@ function postTopicAsCard_(feed_name, feed_url, feed_logo_url, card_title, card_s
     'payload' : JSON.stringify(card_json)
   };
   
-  UrlFetchApp.fetch(WEBHOOK_URL, options);
+  UrlFetchApp.fetch(webhook_url, options);
 }
 
 /**
