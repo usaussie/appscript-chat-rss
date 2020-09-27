@@ -9,11 +9,12 @@ var DEBUG = false;
 // Columns MUST be in this order: 
 // feed_name {STRING)}
 // feed_url (URL)
+// feed_type (RSS or ATOM)
 // feed_logo (URL)
 // webhook_url (URL)
 // status (STRING) - active | disabled
-var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR-SPREADSHEET-ID-HERE/edit";
-var GOOGLE_SHEET_TAB_NAME = "YOUR TAB NAME";
+var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/<your-sheet-id-here/edit";
+var GOOGLE_SHEET_TAB_NAME = "feed_data";
 
 /*
 * DO NOT CHANGE ANYTHING BELOW THIS LINE
@@ -22,7 +23,7 @@ var GOOGLE_SHEET_TAB_NAME = "YOUR TAB NAME";
 var all_sheet_rows = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_TAB_NAME).getDataRange().getValues();
 
 var filteredRows = all_sheet_rows.filter(function(row){
-  if (row[4] === 'active') {
+  if (row[5] === 'active') {
     return row;
   }
 });
@@ -32,14 +33,14 @@ function fetch_all_feeds() {
 
   filteredRows.forEach(function(row, index) {
     
-      fetchNews(row[3], row[0], row[1], row[2]);
+      fetchNews(row[0], row[1], row[2], row[3], row[4]);
 
   });
 
 }
 
 // fetch a feed, and send any new events through to the associated Chat room
-function fetchNews(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL) {
+function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
   
   var lastUpdate = new Date(parseFloat(PropertiesService.getScriptProperties().getProperty("lastUpdate")) || 0);
 
@@ -51,42 +52,88 @@ function fetchNews(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL) {
   
   var xml = UrlFetchApp.fetch(FEED_URL).getContentText();
   var document = XmlService.parse(xml);
-    
-  var items = document.getRootElement().getChild('channel').getChildren('item').reverse();
   
-  Logger.log(items.length + " entrie(s) found");
-  
-  var count = 0;
-  
-  for (var i = 0; i < items.length; i++) {
+  if(FEED_TYPE == "RSS") {
+
+    Logger.log("RSS Feed being parsed - " + FEED_NAME);
+
+    var items = document.getRootElement().getChild('channel').getChildren('item').reverse();
     
-    var pubDate = new Date(items[i].getChild('pubDate').getText());
-    var title = items[i].getChild("title").getText();
-    var description = items[i].getChild("description").getText();
-    var link = items[i].getChild("link").getText();
-    var eventDate = items[i].getChild("pubDate").getText();
+    Logger.log(items.length + " entrie(s) found");
     
-    if(DEBUG){
-      Logger.log("------ " + (i+1) + "/" + items.length + " ------");
-      Logger.log(pubDate);
-      Logger.log(title);
-      Logger.log(link);
-      // Logger.log(description);
-      Logger.log("--------------------");
+    var count = 0;
+    
+    for (var i = 0; i < items.length; i++) {
+      
+      var pubDate = new Date(items[i].getChild('pubDate').getText());
+      var title = items[i].getChild("title").getText();
+      var description = items[i].getChild("description").getText();
+      var link = items[i].getChild("link").getText();
+      var eventDate = items[i].getChild("pubDate").getText();
+      
+      if(DEBUG){
+        Logger.log("------ " + (i+1) + "/" + items.length + " ------");
+        Logger.log(pubDate);
+        Logger.log(title);
+        Logger.log(link);
+        // Logger.log(description);
+        Logger.log("--------------------");
+      }
+
+      // check to make sure the feed event is after the last time we ran the script
+      if(pubDate.getTime() > lastUpdate.getTime()) {
+        //Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
+        if(!DEBUG){
+          postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
+        }
+        PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
+        count++;
+      }
     }
 
-    // check to make sure the feed event is after the last time we ran the script
-    if(pubDate.getTime() > lastUpdate.getTime()) {
-      //Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
-      if(!DEBUG){
-        postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
+  } else {
+    //must be ATOM then
+    Logger.log("ATOM Feed being parsed - " + FEED_NAME);
+
+    var url = FEED_URL;
+    var xml = UrlFetchApp.fetch(url).getContentText();
+    var document = XmlService.parse(xml);
+    var root = document.getRootElement();
+    var atom = XmlService.getNamespace('http://www.w3.org/2005/Atom');
+
+    var entries = root.getChildren('entry', atom);
+    var count = 0;
+    for (var i = 0; i < entries.length; i++) {
+      var title = entries[i].getChild('title', atom).getText();
+      var pubDate = new Date(entries[i].getChild('updated', atom).getText());
+      var link = entries[i].getChild("link", atom).getAttribute('href').getValue();
+      var eventDate = entries[i].getChild("updated", atom).getText();
+
+      if(DEBUG){
+        Logger.log("------ " + (i+1) + "/" + items.length + " ------");
+        Logger.log(pubDate);
+        Logger.log(title);
+        Logger.log(link);
+        // Logger.log(description);
+        Logger.log("--------------------");
       }
-      PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
-      count++;
+
+      // check to make sure the feed event is after the last time we ran the script
+      if(pubDate.getTime() > lastUpdate.getTime()) {
+        //Logger.log("Logging Event - Title: " + title + " | Date: " + eventDate + " | Link: " + link);
+        if(!DEBUG){
+          postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
+        }
+        PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
+        count++;
+      }
+
     }
+
+    Logger.log(entries.length + " entrie(s) found");
+    Logger.log("--> " + count + " item(s) posted");
   }
   
-  Logger.log("--> " + count + " item(s) posted");
 }
 
 // quick function to take the info, send it to create a card, and then post the card.
