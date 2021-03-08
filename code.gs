@@ -110,7 +110,7 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
       var eventDate = entries[i].getChild("updated", atom).getText();
 
       if(DEBUG){
-        Logger.log("------ " + (i+1) + "/" + items.length + " ------");
+        Logger.log("------ " + (i+1) + "/" + entries.length + " ------");
         Logger.log(pubDate);
         Logger.log(title);
         Logger.log(link);
