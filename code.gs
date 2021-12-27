@@ -13,42 +13,48 @@ var DEBUG = false;
 // feed_logo (URL)
 // webhook_url (URL)
 // status (STRING) - active | disabled
-var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/<your-sheet-id-here/edit";
+var GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id/edit";
 var GOOGLE_SHEET_TAB_NAME = "feed_data";
+var RESET_LAST_LOOKUP_TIME = 'Fri Dec 10 00:00:00 GMT-05:00 2021';  // Format: Fri Dec 10 14:37:12 GMT-05:00 2021
 
 /*
 * DO NOT CHANGE ANYTHING BELOW THIS LINE
 */
 
-var all_sheet_rows = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_TAB_NAME).getDataRange().getValues();
-
-var filteredRows = all_sheet_rows.filter(function(row){
-  if (row[5] === 'active') {
-    return row;
-  }
-});
+// only use this if you want to reset the time back to the specified time
+function job_reset_last_lookup_time() {
+  Logger.log(PropertiesService.getScriptProperties().getProperty("lastUpdate"));
+  PropertiesService.getScriptProperties().setProperty("lastUpdate", new Date(RESET_LAST_LOOKUP_TIME).getTime());
+  Logger.log(PropertiesService.getScriptProperties().getProperty("lastUpdate"));
+}
 
 // loop through all the filtered rows (the active ones)
-function fetch_all_feeds() {
+function job_fetch_all_feeds() {
+
+  var all_sheet_rows = SpreadsheetApp.openByUrl(GOOGLE_SHEET_URL).getSheetByName(GOOGLE_SHEET_TAB_NAME).getDataRange().getValues();
+
+  var filteredRows = all_sheet_rows.filter(function(row){
+    if (row[5] === 'active') {
+      return row;
+    }
+  });
 
   filteredRows.forEach(function(row, index) {
     
-      fetchNews(row[0], row[1], row[2], row[3], row[4]);
+      fetchNews_(row[0], row[1], row[2], row[3], row[4]);
 
   });
 
 }
 
 // fetch a feed, and send any new events through to the associated Chat room
-function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
+function fetchNews_(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
   
   var lastUpdate = new Date(parseFloat(PropertiesService.getScriptProperties().getProperty("lastUpdate")) || 0);
 
   Logger.log("Last update: " + lastUpdate);
   
   Logger.log("Fetching '" + FEED_NAME + "'...");
-  //Logger.log("URL '" + FEED_URL + "'...");
-  //Logger.log("LOGO '" + FEED_LOGO_URL + "'...");
   
   var xml = UrlFetchApp.fetch(FEED_URL).getContentText();
   var document = XmlService.parse(xml);
@@ -72,8 +78,8 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
       var eventDate = items[i].getChild("pubDate").getText();
       
       if(DEBUG){
-        Logger.log("------ " + (i+1) + "/" + items.length + " ------");
         Logger.log(pubDate);
+        Logger.log(pubDate.getTime());
         Logger.log(title);
         Logger.log(link);
         // Logger.log(description);
@@ -87,6 +93,8 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
           postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
         }
         PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
+        Logger.log('Last Update Setting to...');
+        Logger.log(PropertiesService.getScriptProperties().getProperty("lastUpdate"));
         count++;
       }
     }
@@ -110,8 +118,8 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
       var eventDate = entries[i].getChild("updated", atom).getText();
 
       if(DEBUG){
-        Logger.log("------ " + (i+1) + "/" + entries.length + " ------");
         Logger.log(pubDate);
+        Logger.log(pubDate.getTime());
         Logger.log(title);
         Logger.log(link);
         // Logger.log(description);
@@ -125,6 +133,8 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
           postTopicAsCard_(WEBHOOK_URL, FEED_NAME, FEED_URL, FEED_LOGO_URL, title, eventDate, link);
         }
         PropertiesService.getScriptProperties().setProperty("lastUpdate", pubDate.getTime());
+        Logger.log('Last Update Setting to...');
+        Logger.log(PropertiesService.getScriptProperties().getProperty("lastUpdate"));
         count++;
       }
 
@@ -139,7 +149,7 @@ function fetchNews(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) {
 // quick function to take the info, send it to create a card, and then post the card.
 function postTopicAsCard_(webhook_url, feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link) {
   
-  var card_json = createCardJson(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link);
+  var card_json = createCardJson_(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link);
 
   // set options for what will be sent to Chat according to documentation
   var options = {
@@ -155,7 +165,7 @@ function postTopicAsCard_(webhook_url, feed_name, feed_url, feed_logo_url, card_
  * Creates a card-formatted response.
   * @return {object} JSON-formatted response
  */
-function createCardJson(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link) {
+function createCardJson_(feed_name, feed_url, feed_logo_url, card_title, card_subtitle, card_link) {
   return {
     cards: [{
         "header": {
