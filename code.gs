@@ -88,16 +88,13 @@ function fetchNews_(FEED_NAME, FEED_URL, FEED_TYPE, FEED_LOGO_URL, WEBHOOK_URL) 
 
       try{
         var pubDate = new Date(items[i].getChild('pubDate').getText());
-        var title = items[i].getChild("title").getText();
-        var description = items[i].getChild("description").getText();
-        var link = items[i].getChild("link").getText();
+        var title = items[i].getChild("title").getText() || "No title available.";
+        var description = items[i].getChild("description").getText() || "No description available.";
+        var link = items[i].getChild("link").getText() || "";
         var eventDate = items[i].getChild("pubDate").getText();
       }
       catch(err){
         Logger.log(err);
-      }
-      if (description == null){
-        description = "No description available."
       }
       // check to make sure the feed event is after the last time we ran the script
       if(pubDate.getTime() > lastUpdate.getTime()) {
